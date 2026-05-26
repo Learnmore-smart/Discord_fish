@@ -10,6 +10,7 @@ load_dotenv()
 # --- CONFIGURATION ---
 USER_TOKEN = os.getenv('USER_TOKEN')
 CHANNEL_ID = os.getenv('CHANNEL_ID')
+WAIT_TIME = float(os.getenv('WAIT_TIME', '2.2'))
 KEYWORDS = ["verification", "code", "captcha", "anti-bot", "verify"]
 
 # Generate a random 32-character hex session ID
@@ -262,10 +263,9 @@ def main():
             # 2. Send the /fish command using interactions API
             send_slash_command()
 
-            # 3. Wait exactly 2.2 seconds - change based on your time
-            wait_time = 2.2
-            print(f"Waiting {wait_time:.1f} seconds...")
-            time.sleep(wait_time)
+            # 3. Wait exactly WAIT_TIME seconds - change based on your time
+            print(f"Waiting {WAIT_TIME:.1f} seconds...")
+            time.sleep(WAIT_TIME)
 
         except KeyboardInterrupt:
             print("\nStopped manually.")
