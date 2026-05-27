@@ -278,18 +278,18 @@ def main():
             if current_time - last_10m_time >= COOLDOWN_10M:
                 print("\n[+] Sending 10-minute scheduled commands...")
                 send_sell_command("all")
-                time.sleep(WAIT_TIME)
+                time.sleep(WAIT_TIME + random.uniform(0, 0.3))
                 send_buy_command("Auto10m")
-                time.sleep(WAIT_TIME)
+                time.sleep(WAIT_TIME + random.uniform(0, 0.3))
                 last_10m_time = time.time()
 
             # Send the 5m commands
             if current_time - last_5m_time >= COOLDOWN_5M:
                 print("\n[+] Sending 5-minute scheduled commands...")
                 send_buy_command("Fish5m")
-                time.sleep(WAIT_TIME)
+                time.sleep(WAIT_TIME + random.uniform(0, 0.3))
                 send_buy_command("Treasure5m")
-                time.sleep(WAIT_TIME)
+                time.sleep(WAIT_TIME + random.uniform(0, 0.3))
                 last_5m_time = time.time()
 
             # 1. Read recent messages to check for bot stop keywords
@@ -363,9 +363,10 @@ def main():
             # 2. Send the /fish command using interactions API
             send_slash_command()
 
-            # 3. Wait exactly WAIT_TIME seconds - change based on your time
-            print(f"Waiting {WAIT_TIME:.1f} seconds...")
-            time.sleep(WAIT_TIME)
+            # 3. Wait exactly WAIT_TIME seconds + random 0 to 0.3s
+            actual_wait = WAIT_TIME + random.uniform(0, 0.3)
+            print(f"Waiting {actual_wait:.2f} seconds...")
+            time.sleep(actual_wait)
 
         except KeyboardInterrupt:
             print("\nStopped manually.")
