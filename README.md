@@ -10,6 +10,7 @@ Basic feature:
 - Auto verification
 
 Advance feature:
+- **Auto AI verification (free)**
 - **Auto check profile & state management**: Seamlessly checks profile and shops in the background every 30 minutes without pausing fishing.
 - **Auto buy best available rods, boats, and upgrades**: Automatically exhausts available funds purchasing affordable items one by one sequentially.
 - **Auto bait stocking (buys 50 of the best unlocked bait when below 10)**
