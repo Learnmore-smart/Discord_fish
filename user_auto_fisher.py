@@ -135,6 +135,80 @@ def send_verify_command(code):
         print(f"Failed to send verify slash command: {response.status_code} - {response.text}")
         return False
 
+def send_buy_command(item):
+    """Send the /buy slash command using the interactions API."""
+    url = 'https://discord.com/api/v9/interactions'
+    payload = {
+        "type": 2,
+        "application_id": "574652751745777665",
+        "guild_id": "1491654181201903646",
+        "channel_id": CHANNEL_ID,
+        "session_id": SESSION_ID,
+        "nonce": generate_nonce(),
+        "data": {
+            "version": "1207457860460744728",
+            "id": "912432961134166090",
+            "name": "buy",
+            "type": 1,
+            "options": [
+                {"type": 3, "name": "item", "value": item}
+            ],
+            "application_command": {
+                "id": "912432961134166090",
+                "type": 1,
+                "application_id": "574652751745777665",
+                "version": "1207457860460744728",
+                "name": "buy"
+            },
+            "attachments": []
+        }
+    }
+
+    response = requests.post(url, headers=HEADERS, json=payload)
+    if response.status_code in [200, 204]:
+        print(f"Sent Slash Command: /buy {item}")
+        return True
+    else:
+        print(f"Failed to send buy slash command: {response.status_code} - {response.text}")
+        return False
+
+def send_sell_command(amount):
+    """Send the /sell slash command using the interactions API."""
+    url = 'https://discord.com/api/v9/interactions'
+    payload = {
+        "type": 2,
+        "application_id": "574652751745777665",
+        "guild_id": "1491654181201903646",
+        "channel_id": CHANNEL_ID,
+        "session_id": SESSION_ID,
+        "nonce": generate_nonce(),
+        "data": {
+            "version": "1207457860208824333",
+            "id": "912432960643416116",
+            "name": "sell",
+            "type": 1,
+            "options": [
+                {"type": 3, "name": "amount", "value": amount}
+            ],
+            "application_command": {
+                "id": "912432960643416116",
+                "type": 1,
+                "application_id": "574652751745777665",
+                "version": "1207457860208824333",
+                "name": "sell"
+            },
+            "attachments": []
+        }
+    }
+
+    response = requests.post(url, headers=HEADERS, json=payload)
+    if response.status_code in [200, 204]:
+        print(f"Sent Slash Command: /sell {amount}")
+        return True
+    else:
+        print(f"Failed to send sell slash command: {response.status_code} - {response.text}")
+        return False
+
 def extract_verification_code(message_text):
     """Extract a verification code from a bot message after cleaning markdown formatting."""
     # Remove markdown symbols (asterisks, underscores, backticks) to clean up formatting
@@ -190,8 +264,34 @@ def main():
     fishing_active = True
     handled_verifications = set()
 
+    last_5m_time = 0
+    COOLDOWN_5M = 305  # 5 minutes and 5 seconds
+
+    last_10m_time = 0
+    COOLDOWN_10M = 605  # 10 minutes and 5 seconds
+
     while fishing_active:
         try:
+            current_time = time.time()
+
+            # Send the 10m commands
+            if current_time - last_10m_time >= COOLDOWN_10M:
+                print("\n[+] Sending 10-minute scheduled commands...")
+                send_sell_command("all")
+                time.sleep(WAIT_TIME)
+                send_buy_command("Auto10m")
+                time.sleep(WAIT_TIME)
+                last_10m_time = time.time()
+
+            # Send the 5m commands
+            if current_time - last_5m_time >= COOLDOWN_5M:
+                print("\n[+] Sending 5-minute scheduled commands...")
+                send_buy_command("Fish5m")
+                time.sleep(WAIT_TIME)
+                send_buy_command("Treasure5m")
+                time.sleep(WAIT_TIME)
+                last_5m_time = time.time()
+
             # 1. Read recent messages to check for bot stop keywords
             messages = get_latest_messages(limit=15)
 
