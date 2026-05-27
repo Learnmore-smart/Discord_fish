@@ -70,10 +70,12 @@ class GameState:
         bait_match = re.search(r'Bait:(.*?)(?:\n|$)', text)
         if bait_match:
             bait_line = bait_match.group(1)
-            b = re.search(r':([a-z_]+):\s*(.*?)\s*\((\d+)\)', bait_line)
+            emoji_pattern = r'(?:<a?:[a-zA-Z0-9_]+:\d+>|:[a-zA-Z0-9_]+:)'
+            b = re.search(emoji_pattern + r'\s*(.*?)\s*\((\d+)\)', bait_line)
             if b:
-                self.bait_name = b.group(2).strip()
-                self.bait_amount = int(b.group(3))
+                clean_name = re.sub(r'[\*`]', '', b.group(1)).strip()
+                self.bait_name = clean_name
+                self.bait_amount = int(b.group(2))
 
     def parse_shop(self, text, category=""):
         if "Your balance:" in text:
@@ -81,26 +83,31 @@ class GameState:
             if bal_match:
                 self.balance = int(bal_match.group(1).replace(',', ''))
 
+        emoji_pattern = r'(?:<a?:[a-zA-Z0-9_]+:\d+>|:[a-zA-Z0-9_]+:)'
+
         if category == "bait":
-            baits = re.findall(r':[a-z_]+:\s*(.+?)\s*-\s*\$([\d,]+)\.', text)
+            baits = re.findall(emoji_pattern + r'\s*(.+?)\s*-\s*\$([\d,]+)\.', text)
             for name, price in baits:
+                clean_name = re.sub(r'[\*`]', '', name).strip()
                 self.available_baits.append({
-                    'name': name.strip(),
+                    'name': clean_name,
                     'price': int(price.replace(',', ''))
                 })
         else:
-            items = re.findall(r':[a-z_]+:\s*(.+?)\s*-\s*\$([\d,]+)', text)
+            items = re.findall(emoji_pattern + r'\s*(.+?)\s*-\s*\$([\d,]+)', text)
             for name, price in items:
+                clean_name = re.sub(r'[\*`]', '', name).strip()
                 self.unowned_items.append({
-                    'name': name.strip(),
+                    'name': clean_name,
                     'price': int(price.replace(',', '')),
                     'type': category
                 })
 
             upgrades = re.findall(r'\d+/\d+\s+(.+?)\s*-\s*\$([\d,]+)', text)
             for name, price in upgrades:
+                clean_name = re.sub(r'[\*`]', '', name).strip()
                 self.unowned_items.append({
-                    'name': name.strip(),
+                    'name': clean_name,
                     'price': int(price.replace(',', '')),
                     'type': category
                 })
