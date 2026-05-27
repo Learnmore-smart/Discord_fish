@@ -330,7 +330,7 @@ def main():
     COOLDOWN_10M = 605  # 10 minutes and 5 seconds
 
     last_shop_time = 0
-    COOLDOWN_SHOP = 1800  # 30 minutes
+    COOLDOWN_SHOP = 600  # 10 minutes
 
     while fishing_active:
         try:
