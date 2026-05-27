@@ -253,7 +253,7 @@ def get_image_url_from_message(msg):
 def handle_verification(msg_content_raw, msg=None):
     """Attempt to auto-solve the verification."""
     code = extract_verification_code(msg_content_raw)
-    
+
     if not code:
         image_url = get_image_url_from_message(msg)
         if image_url:
@@ -268,7 +268,7 @@ def handle_verification(msg_content_raw, msg=None):
                     genai.configure(api_key=api_key)
                     # User specifically requested gemma-4-26b-a4b-it
                     model = genai.GenerativeModel('gemma-4-26b-a4b-it')
-                    
+
                     response = requests.get(image_url)
                     if response.status_code == 200:
                         img = Image.open(io.BytesIO(response.content))
