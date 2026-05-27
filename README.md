@@ -16,13 +16,29 @@ An automated Python script for sending `/fish` commands in Discord to play Virtu
 
 ## Setup Guide
 
-### 1. Install Requirements
-Make sure you have Python (3.7+) installed. Open your terminal in the project folder and run:
+### 1. Download the Project
+Go to the top of this GitHub repository, click the green **Code** button, and select **Download ZIP**. Once downloaded, right-click the file and extract (unzip) it to a folder on your computer.
+![alt text](public/github.png)
+
+### 2. Install Python
+If you don't already have Python installed, download it from [python.org](https://www.python.org/downloads/) (version 3.7 or higher).
+**Important:** During the installation on Windows, make sure you check the box that says **"Add python.exe to PATH"** at the bottom of the installer before continuing.
+
+### 3. Install Requirements
+Open your terminal in the project folder and run:
 ```bash
 pip install -r requirements.txt
 ```
+If the command above says `pip is not recognized`, try one of the following alternatives:
+```bash
+python -m pip install -r requirements.txt
+# OR
+py -m pip install -r requirements.txt
+# OR
+pip3 install -r requirements.txt
+```
 
-### 2. Configuration
+### 4. Configuration
 1. Copy the `.env.example` file and rename the copy to `.env`.
 2. Open `.env` in a text editor and fill in your details:
    - `USER_TOKEN`: Your personal Discord account token (**DO NOT share this**).
@@ -48,12 +64,12 @@ pip install -r requirements.txt
 1. Enable **Developer Mode** in Discord (User Settings > Advanced).
 2. Right-click the channel name where you want to fish and click **Copy Channel ID**.
 How to get channel ID
-![alt text](public/image.png)
 ![alt text](public/image-1.png)
+![alt text](public/image.png)
 
 
 
-### 3. Run the Bot
+### 5. Run the Bot
 Start the script from your terminal or install VScode and run it:
 ```bash
 python user_auto_fisher.py
