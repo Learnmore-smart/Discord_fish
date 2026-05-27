@@ -36,31 +36,23 @@ git clone https://github.com/YOUR_GITHUB_USERNAME/Discord_fish.git
 *(Make sure you replace the URL with the actual GitHub link to this repository)*
 4. Go to **File > Open Folder...** and select the newly created `Discord_fish` folder.
 
-### 3. Open the Terminal in the Project
-1. Once the folder is open, click **Terminal > New Terminal** again. This ensures you are in the correct project folder (`Discord_fish`) for the next steps!
+### 3. Quick Setup (Windows only)
+For the easiest setup, simply double-click the `setup.bat` file in the folder!
+* It will automatically create an isolated environment and install the required files.
+* Note: For Mac/Linux, run `python3 -m venv .venv`, `source .venv/bin/activate`, and `pip install -r requirements.txt`.
 
-### 4. Install Requirements
-In the VS Code terminal you just opened, run:
-```bash
-pip install -r requirements.txt
-```
-If the command above says `pip is not recognized`, try one of the following alternatives:
-```bash
-python -m pip install -r requirements.txt
-# OR
-py -m pip install -r requirements.txt
-# OR
-pip3 install -r requirements.txt
-```
-
-### 5. Configuration
-1. Still inside VS Code, look at the files on the left side. Right-click the `.env.example` file, select **Copy**, then **Paste**, and finally rename the copied file to exactly `.env`.
-2. Open the `.env` file in VS Code and fill in your details:
+### 4. Configuration
+1. The `setup.bat` will automatically create a `.env` file for you (or copy `.env.example` if you are doing it manually). Open the `.env` file in VS Code or Notepad and fill in your details:
    - `USER_TOKEN`: Your personal Discord account token (**DO NOT share this**).
    - `CHANNEL_ID`: The ID of the Discord channel where you want to fish.
    - `WAIT_TIME`: Time to wait between `/fish` commands in seconds. (Recommended `2.2` or higher).
-
-
+   - `GEMINI_API_KEY`: (OPTIONAL) Google AI Studio API for auto-solving image Captchas. **This API is 100% FREE** since we are using their free tier models! If not provided, the bot will still auto-solve standard text Captchas without issues, but will safely pause when it spots an image Captcha so you can enter it manually. This prevents accidental bans!
+![alt text](public/API1.png)
+![alt text](public/API2.png)
+![alt text](public/API3.png)
+![alt text](public/API4.png)
+![alt text](public/API5.png)
+![alt text](public/API6.png)
 
 
 
@@ -104,8 +96,10 @@ How to get channel ID
 
 
 
-### 6. Run the Bot
-To run the bot in VS Code:
+### 5. Run the Bot
+To run the bot, you can now simply double-click `start_bot.bat`!
+
+Alternatively, in VS Code:
 1. Make sure you have the `user_auto_fisher.py` file open and selected.
 2. Click the Play/Run button in the top right corner of VS Code (see image below) or run this command in the terminal:
 ```bash

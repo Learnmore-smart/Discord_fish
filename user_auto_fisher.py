@@ -239,9 +239,54 @@ def extract_verification_code(message_text):
             return match.group(1)
     return None
 
-def handle_verification(msg_content_raw):
+def get_image_url_from_message(msg):
+    if not msg:
+        return None
+    for attachment in msg.get('attachments', []):
+        if 'image' in attachment.get('content_type', '') or attachment.get('url', '').endswith(('.png', '.jpg', '.jpeg')):
+            return attachment.get('url')
+    for embed in msg.get('embeds', []):
+        if embed.get('image') and embed['image'].get('url'):
+            return embed['image']['url']
+    return None
+
+def handle_verification(msg_content_raw, msg=None):
     """Attempt to auto-solve the verification."""
     code = extract_verification_code(msg_content_raw)
+    
+    if not code:
+        image_url = get_image_url_from_message(msg)
+        if image_url:
+            print(f"🖼️ Found image verification at: {image_url}")
+            api_key = os.getenv('GEMINI_API_KEY')
+            if api_key:
+                try:
+                    import google.generativeai as genai
+                    from PIL import Image
+                    import io
+                    print("🤖 Using Google AI Studio to solve image captcha...")
+                    genai.configure(api_key=api_key)
+                    # User specifically requested gemma-4-26b-a4b-it
+                    model = genai.GenerativeModel('gemma-4-26b-a4b-it')
+                    
+                    response = requests.get(image_url)
+                    if response.status_code == 200:
+                        img = Image.open(io.BytesIO(response.content))
+                        prompt = "Extract the verification code or text from this captcha image. Respond with ONLY the exact code/text, nothing else. No explanation, no markdown."
+                        ocr_result = model.generate_content([prompt, img])
+                        code = ocr_result.text.strip()
+                        # Clean up any potential markdown added by the model
+                        code = re.sub(r'[\*_`]', '', code)
+                        print(f"🤖 AI Studio OCR Result: {code}")
+                    else:
+                        print("❌ Failed to download image for OCR.")
+                except ImportError:
+                    print("❌ google-generativeai or Pillow library is not installed.")
+                except Exception as e:
+                    print(f"❌ Error during AI Studio OCR: {e}")
+            else:
+                print("⚠️ GEMINI_API_KEY not found in .env. Setup Google AI Studio API for optional Auto-OCR. (It's 100% free!)")
+
     if code:
         print(f"🔧 Extracted captcha code: {code}")
         print("Sending /verify command...")
@@ -371,7 +416,7 @@ def main():
                             print(f"Embeds: {msg.get('embeds')}")
                         print("="*50 + "\n")
 
-                        success = handle_verification(msg_content_raw)
+                        success = handle_verification(msg_content_raw, msg)
                         if success:
                             print("[*] Verification auto-solved. Resuming fishing in 5 seconds...")
                             time.sleep(5)
