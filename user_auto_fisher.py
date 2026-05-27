@@ -13,13 +13,109 @@ CHANNEL_ID = os.getenv('CHANNEL_ID')
 WAIT_TIME = float(os.getenv('WAIT_TIME', '2.2'))
 KEYWORDS = ["verification", "code", "captcha", "anti-bot", "verify"]
 
+# Known Virtual Fisher App ID
+APP_ID = "574652751745777665"
+
+# --- COMMAND IDS (fallback defaults) ---
+CMD_FISH_ID = os.getenv('CMD_FISH_ID', '912432960643416115')
+CMD_FISH_VER = os.getenv('CMD_FISH_VER', '1207457860208824332')
+
+CMD_BUY_ID = os.getenv('CMD_BUY_ID', '912432961134166090')
+CMD_BUY_VER = os.getenv('CMD_BUY_VER', '1207457860460744728')
+
+CMD_SELL_ID = os.getenv('CMD_SELL_ID', '912432960643416116')
+CMD_SELL_VER = os.getenv('CMD_SELL_VER', '1207457860208824333')
+
+CMD_VERIFY_ID = os.getenv('CMD_VERIFY_ID', '912432961222238220')
+CMD_VERIFY_VER = os.getenv('CMD_VERIFY_VER', '1207457860523663380')
+
+# For features requiring extra setup:
+CMD_PROFILE_ID = os.getenv('CMD_PROFILE_ID', '912432960815372338')
+CMD_PROFILE_VER = os.getenv('CMD_PROFILE_VER', '1207457860460744723')
+
+CMD_SHOP_ID = os.getenv('CMD_SHOP_ID', '912432960815372339')
+CMD_SHOP_VER = os.getenv('CMD_SHOP_VER', '1207457860460744724')
+
 # Generate a random 32-character hex session ID
 SESSION_ID = "".join(random.choices("0123456789abcdef", k=32))
+GUILD_ID = os.getenv('GUILD_ID', '1491654181201903646')
 
 HEADERS = {
     'Authorization': f'{USER_TOKEN}',
     'Content-Type': 'application/json'
 }
+
+class GameState:
+    def __init__(self):
+        self.balance = 0
+        self.level = 0
+        self.bait_amount = 0
+        self.bait_name = ""
+        self.unowned_items = []
+        self.available_baits = []
+
+    def reset_shop_state(self):
+        self.unowned_items = []
+        self.available_baits = []
+
+    def parse_profile(self, text):
+        bal_match = re.search(r'Balance:\s*\$([\d,]+)', text)
+        if bal_match:
+            self.balance = int(bal_match.group(1).replace(',', ''))
+
+        lvl_match = re.search(r'Level\s+(\d+)', text)
+        if lvl_match:
+            self.level = int(lvl_match.group(1))
+
+        bait_match = re.search(r'Bait:(.*?)(?:\n|$)', text)
+        if bait_match:
+            bait_line = bait_match.group(1)
+            b = re.search(r':([a-z_]+):\s*(.*?)\s*\((\d+)\)', bait_line)
+            if b:
+                self.bait_name = b.group(2).strip()
+                self.bait_amount = int(b.group(3))
+
+    def parse_shop(self, text, category=""):
+        if "Your balance:" in text:
+            bal_match = re.search(r'Your balance:\s*\$([\d,]+)', text)
+            if bal_match:
+                self.balance = int(bal_match.group(1).replace(',', ''))
+
+        if category == "bait":
+            baits = re.findall(r':[a-z_]+:\s*(.+?)\s*-\s*\$([\d,]+)\.', text)
+            for name, price in baits:
+                self.available_baits.append({
+                    'name': name.strip(),
+                    'price': int(price.replace(',', ''))
+                })
+        else:
+            items = re.findall(r':[a-z_]+:\s*(.+?)\s*-\s*\$([\d,]+)', text)
+            for name, price in items:
+                self.unowned_items.append({
+                    'name': name.strip(),
+                    'price': int(price.replace(',', '')),
+                    'type': category
+                })
+
+            upgrades = re.findall(r'\d+/\d+\s+(.+?)\s*-\s*\$([\d,]+)', text)
+            for name, price in upgrades:
+                self.unowned_items.append({
+                    'name': name.strip(),
+                    'price': int(price.replace(',', '')),
+                    'type': category
+                })
+
+    def get_best_purchase(self):
+        if self.unowned_items:
+            self.unowned_items.sort(key=lambda x: x['price'])
+            cheapest = self.unowned_items[0]
+            if self.balance >= cheapest['price']:
+                return cheapest
+        return None
+
+# Global game state reference
+game_state = GameState()
+
 
 def generate_nonce():
     """Generate a pseudo-random snowflake-like nonce string."""
@@ -63,28 +159,31 @@ def send_message(content):
         print(f"Failed to send message: {response.status_code} - {response.text}")
         return False
 
-def send_slash_command():
-    """Send the /fish slash command using the interactions API."""
+def dispatch_slash_command(command_name, cmd_id, version, options=None):
+    """Generic function to send a slash command."""
+    if options is None:
+        options = []
+
     url = 'https://discord.com/api/v9/interactions'
     payload = {
         "type": 2,
-        "application_id": "574652751745777665",
-        "guild_id": "1491654181201903646",
+        "application_id": APP_ID,
         "channel_id": CHANNEL_ID,
+        "guild_id": GUILD_ID,
         "session_id": SESSION_ID,
         "nonce": generate_nonce(),
         "data": {
-            "version": "1207457860208824332",
-            "id": "912432960643416115",
-            "name": "fish",
+            "version": version,
+            "id": cmd_id,
+            "name": command_name,
             "type": 1,
-            "options": [],
+            "options": options,
             "application_command": {
-                "id": "912432960643416115",
+                "id": cmd_id,
                 "type": 1,
-                "application_id": "574652751745777665",
-                "version": "1207457860208824332",
-                "name": "fish"
+                "application_id": APP_ID,
+                "version": version,
+                "name": command_name
             },
             "attachments": []
         }
@@ -92,122 +191,30 @@ def send_slash_command():
 
     response = requests.post(url, headers=HEADERS, json=payload)
     if response.status_code in [200, 204]:
-        print("Sent Slash Command: /fish")
+        opts_str = " ".join([f"{o.get('name')}={o.get('value')}" for o in options])
+        print(f"Sent Slash Command: /{command_name} {opts_str}".strip())
         return True
     else:
-        print(f"Failed to send slash command: {response.status_code} - {response.text}")
+        print(f"Failed to send /{command_name}: {response.status_code} - {response.text}")
         return False
+
+def send_slash_command():
+    return dispatch_slash_command("fish", CMD_FISH_ID, CMD_FISH_VER)
 
 def send_verify_command(code):
-    """Send the /verify slash command using the interactions API."""
-    url = 'https://discord.com/api/v9/interactions'
-    payload = {
-        "type": 2,
-        "application_id": "574652751745777665",
-        "guild_id": "1491654181201903646",
-        "channel_id": CHANNEL_ID,
-        "session_id": SESSION_ID,
-        "nonce": generate_nonce(),
-        "data": {
-            "version": "1207457860523663380",
-            "id": "912432961222238220",
-            "name": "verify",
-            "type": 1,
-            "options": [
-                {"type": 3, "name": "answer", "value": code}
-            ],
-            "application_command": {
-                "id": "912432961222238220",
-                "type": 1,
-                "application_id": "574652751745777665",
-                "version": "1207457860523663380",
-                "name": "verify"
-            },
-            "attachments": []
-        }
-    }
-
-    response = requests.post(url, headers=HEADERS, json=payload)
-    if response.status_code in [200, 204]:
-        print(f"Sent Slash Command: /verify {code}")
-        return True
-    else:
-        print(f"Failed to send verify slash command: {response.status_code} - {response.text}")
-        return False
+    return dispatch_slash_command("verify", CMD_VERIFY_ID, CMD_VERIFY_VER, [{"type": 3, "name": "answer", "value": code}])
 
 def send_buy_command(item):
-    """Send the /buy slash command using the interactions API."""
-    url = 'https://discord.com/api/v9/interactions'
-    payload = {
-        "type": 2,
-        "application_id": "574652751745777665",
-        "guild_id": "1491654181201903646",
-        "channel_id": CHANNEL_ID,
-        "session_id": SESSION_ID,
-        "nonce": generate_nonce(),
-        "data": {
-            "version": "1207457860460744728",
-            "id": "912432961134166090",
-            "name": "buy",
-            "type": 1,
-            "options": [
-                {"type": 3, "name": "item", "value": item}
-            ],
-            "application_command": {
-                "id": "912432961134166090",
-                "type": 1,
-                "application_id": "574652751745777665",
-                "version": "1207457860460744728",
-                "name": "buy"
-            },
-            "attachments": []
-        }
-    }
-
-    response = requests.post(url, headers=HEADERS, json=payload)
-    if response.status_code in [200, 204]:
-        print(f"Sent Slash Command: /buy {item}")
-        return True
-    else:
-        print(f"Failed to send buy slash command: {response.status_code} - {response.text}")
-        return False
+    return dispatch_slash_command("buy", CMD_BUY_ID, CMD_BUY_VER, [{"type": 3, "name": "item", "value": item}])
 
 def send_sell_command(amount):
-    """Send the /sell slash command using the interactions API."""
-    url = 'https://discord.com/api/v9/interactions'
-    payload = {
-        "type": 2,
-        "application_id": "574652751745777665",
-        "guild_id": "1491654181201903646",
-        "channel_id": CHANNEL_ID,
-        "session_id": SESSION_ID,
-        "nonce": generate_nonce(),
-        "data": {
-            "version": "1207457860208824333",
-            "id": "912432960643416116",
-            "name": "sell",
-            "type": 1,
-            "options": [
-                {"type": 3, "name": "amount", "value": amount}
-            ],
-            "application_command": {
-                "id": "912432960643416116",
-                "type": 1,
-                "application_id": "574652751745777665",
-                "version": "1207457860208824333",
-                "name": "sell"
-            },
-            "attachments": []
-        }
-    }
+    return dispatch_slash_command("sell", CMD_SELL_ID, CMD_SELL_VER, [{"type": 3, "name": "amount", "value": amount}])
 
-    response = requests.post(url, headers=HEADERS, json=payload)
-    if response.status_code in [200, 204]:
-        print(f"Sent Slash Command: /sell {amount}")
-        return True
-    else:
-        print(f"Failed to send sell slash command: {response.status_code} - {response.text}")
-        return False
+def send_profile_command():
+    return dispatch_slash_command("profile", CMD_PROFILE_ID, CMD_PROFILE_VER)
+
+def send_shop_command(category):
+    return dispatch_slash_command("shop", CMD_SHOP_ID, CMD_SHOP_VER, [{"type": 3, "name": "category", "value": category}])
 
 def extract_verification_code(message_text):
     """Extract a verification code from a bot message after cleaning markdown formatting."""
@@ -269,6 +276,9 @@ def main():
 
     last_10m_time = 0
     COOLDOWN_10M = 605  # 10 minutes and 5 seconds
+
+    last_shop_time = 0
+    COOLDOWN_SHOP = 1800  # 30 minutes
 
     while fishing_active:
         try:
@@ -333,13 +343,27 @@ def main():
                                 content += ' ' + field['value'].lower()
                                 msg_content_raw += '\n' + field['value']
 
+                    msg_id = msg.get('id')
+                    if msg_id in handled_verifications:
+                        continue
+                    handled_verifications.add(msg_id)
+
+                    # --- Profile/Shop State Parsing ---
+                    lower_content = msg_content_raw.lower()
+                    if "inventory of" in lower_content or "balance:" in lower_content:
+                        game_state.parse_profile(msg_content_raw)
+                    if "shop" in lower_content:
+                        if "rod" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "rods")
+                        elif "boat" in lower_content or "sailboat" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "boats")
+                        elif "upgrade" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "upgrades")
+                        elif "bait shop" in lower_content or "bait:" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "bait")
+
+                    # --- Anti-bot / Verification check ---
                     if any(keyword in content for keyword in KEYWORDS):
-                        msg_id = msg.get('id')
-                        if msg_id in handled_verifications:
-                            continue
-
-                        handled_verifications.add(msg_id)
-
                         print("\n" + "="*50)
                         print(f"🛑 Detected anti-bot keyword in message from bot '{author.get('username')}'!")
                         print(f"Message content: {msg.get('content')}")
@@ -359,6 +383,44 @@ def main():
 
             if not fishing_active:
                 break
+
+            # --- Auto-Shop and Purchases ---
+            best_purchase = game_state.get_best_purchase()
+            while best_purchase:
+                print(f"[!] Can afford {best_purchase['name']} for ${best_purchase['price']:,}! Buying...")
+                send_buy_command(best_purchase['name'])
+                time.sleep(WAIT_TIME)
+                game_state.unowned_items.remove(best_purchase)
+                game_state.balance -= best_purchase['price']
+                best_purchase = game_state.get_best_purchase()
+
+            # Bait maintenance logic (Make sure we parsed the bait shop first, thus available_baits has items)
+            if game_state.available_baits and game_state.bait_name:
+                # We try to stock up the current best bait we are using, or just the best available:
+                best_bait = game_state.available_baits[-1]
+                if game_state.bait_amount < 10 and game_state.balance >= best_bait['price'] * 50:
+                    print(f"[!] Low on bait ({game_state.bait_amount}). Buying 50x {best_bait['name']}...")
+                    send_buy_command(f"{best_bait['name']} 50")
+                    time.sleep(WAIT_TIME)
+                    game_state.bait_amount += 50
+                    game_state.balance -= (best_bait['price'] * 50)
+
+            # Sync shop state periodically
+            if current_time - last_shop_time >= COOLDOWN_SHOP:
+                print("\n[+] Syncing Profile and Shop information...")
+                game_state.reset_shop_state()
+                send_profile_command()
+                time.sleep(WAIT_TIME)
+                send_shop_command("rods")
+                time.sleep(WAIT_TIME)
+                send_shop_command("boats")
+                time.sleep(WAIT_TIME)
+                send_shop_command("upgrades")
+                time.sleep(WAIT_TIME)
+                send_shop_command("bait")
+                time.sleep(WAIT_TIME)
+                last_shop_time = time.time()
+                # DO NOT skip /fish this cycle so we do not pause fishing
 
             # 2. Send the /fish command using interactions API
             send_slash_command()
