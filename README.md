@@ -20,12 +20,18 @@ An automated Python script for sending `/fish` commands in Discord to play Virtu
 Go to the top of this GitHub repository, click the green **Code** button, and select **Download ZIP**. Once downloaded, right-click the file and extract (unzip) it to a folder on your computer.
 ![alt text](public/github.png)
 
-### 2. Install Python
-If you don't already have Python installed, download it from [python.org](https://www.python.org/downloads/) (version 3.7 or higher).
-**Important:** During the installation on Windows, make sure you check the box that says **"Add python.exe to PATH"** at the bottom of the installer before continuing.
+### 2. Install VS Code and Python
+1. Download and install **Visual Studio Code (VS Code)** from [code.visualstudio.com](https://code.visualstudio.com/). You will use this to edit the configuration files and run the bot more easily (though you can also just use Python IDLE if you prefer).
+2. If you don't already have Python installed, download it from [python.org](https://www.python.org/downloads/) (version 3.7 or higher).
+**Important:** During the Python installation on Windows, make sure you check the box that says **"Add python.exe to PATH"** at the bottom of the installer before continuing.
 
-### 3. Install Requirements
-Open your terminal in the project folder and run:
+### 3. Open the Project in VS Code
+1. Open VS Code.
+2. Go to **File > Open Folder...** and select the unzipped project folder.
+3. Open a terminal directly in VS Code by clicking **Terminal > New Terminal** in the top menu. This ensures you are in the correct folder!
+
+### 4. Install Requirements
+In the VS Code terminal you just opened, run:
 ```bash
 pip install -r requirements.txt
 ```
@@ -38,9 +44,9 @@ py -m pip install -r requirements.txt
 pip3 install -r requirements.txt
 ```
 
-### 4. Configuration
-1. Copy the `.env.example` file and rename the copy to `.env`.
-2. Open `.env` in a text editor and fill in your details:
+### 5. Configuration
+1. Still inside VS Code, look at the files on the left side. Right-click the `.env.example` file, select **Copy**, then **Paste**, and finally rename the copied file to exactly `.env`.
+2. Open the `.env` file in VS Code and fill in your details:
    - `USER_TOKEN`: Your personal Discord account token (**DO NOT share this**).
    - `CHANNEL_ID`: The ID of the Discord channel where you want to fish.
    - `WAIT_TIME`: Time to wait between `/fish` commands in seconds. (Recommended `2.2` or higher).
@@ -69,12 +75,13 @@ How to get channel ID
 
 
 
-### 5. Run the Bot
-Start the script from your terminal or install VScode and run it:
+### 6. Run the Bot
+To run the bot in VS Code:
+1. Make sure you have the `user_auto_fisher.py` file open and selected.
+2. Click the Play/Run button in the top right corner of VS Code (see image below) or run this command in the terminal:
 ```bash
 python user_auto_fisher.py
 ```
-If you are running on VScode, you must be on the tab of the file, then you click the button in the following image
 ![alt text](public/vscode.png)
 ![alt text](public/python.png)
 
