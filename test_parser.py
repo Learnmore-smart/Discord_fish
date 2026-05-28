@@ -76,6 +76,13 @@ class GameState:
                 clean_name = re.sub(r'[\*`]', '', name).strip()
                 self.exotic_inventory[clean_name] = int(count.replace(',', ''))
 
+        # Special section (for hooks)
+        special_sec = re.search(r'Special(.*?)$', text, re.DOTALL | re.IGNORECASE)
+        if special_sec:
+            hook_match = re.search(r'([\d,]+)\s+' + EMOJI_PATTERN + r'\s*Hooks', special_sec.group(1), re.IGNORECASE)
+            if hook_match:
+                self.exotic_inventory['Hook'] = int(hook_match.group(1).replace(',', ''))
+
     def parse_shop(self, text, category=""):
         # Clean markdown formatting (asterisks and backslashes) to match robustly
         text = text.replace('*', '').replace('\\', '')
@@ -151,11 +158,11 @@ class GameState:
                     'max_level': int(maximum),
                 })
 
-            # Parse inventory from header line specifically
-            inv_line_match = re.search(r'Inventory:\s*(.*?)(?:\n|$)', text, re.IGNORECASE)
-            if inv_line_match:
-                inv_matches = re.findall(r'([\d,]+)\s+(' + EMOJI_PATTERN + r')', inv_line_match.group(1))
-                for count, emoji_part in inv_matches:
+            # Parse inventory/balance from header lines specifically
+            inv_matches = re.findall(r'(?:Inventory|Balance):\s*(.*?)(?:\n|$)', text, re.IGNORECASE)
+            for line in inv_matches:
+                matches = re.findall(r'([\d,]+)\s+(' + EMOJI_PATTERN + r')', line)
+                for count, emoji_part in matches:
                     emoji_match = re.search(r':([a-zA-Z0-9_]+):', emoji_part)
                     if emoji_match:
                         currency = emoji_match.group(1).replace('_', ' ').title()
@@ -607,6 +614,68 @@ Increase XP gain by 15%."""
     check("Highly Experienced is in purchase plan", "Highly Experienced" in plan9_names, True)
     check("Fish Ovens is NOT in plan", "Fish Ovens" not in plan9_names, True)
     check("Bait Lover is NOT in plan", "Bait Lover" not in plan9_names, True)
+
+    # ─── Test 10: League Shop Upgrades Parsing & Planning ───
+    print("\n🏆 Test 10: League Shop Upgrades Parsing & Planning")
+    gs10 = GameState()
+    gs10.parse_profile(PROFILE_TEXT)
+    check("Hooks from profile parsed", gs10.exotic_inventory.get("Hook"), 20)
+
+    league_shop_page1 = """League Shop
+Hooks :hook: are obtained through weekly fishing leagues. In addition you can earn them through special quests each day.
+
+Balance: 121 :hook:
+
+50 :hook: - 0/5 Pet Helper
+Raises pet max level by 5. Increases low level pet XP gain.
+50 :hook: - 0/5 Bait Helper
+Increases bait effectiveness by 10%.
+50 :hook: - 0/5 Super Crates
+Find super crates. Upgrades increase your chances of finding a super crate.
+50 :hook: - 0/5 Worker Crates
+Allows workers to find crates. Upgrades increase quality and number of crates found.
+
+You will receive +49 hooks :hook: at the end of the week. Continue fishing for a greater reward.
+
+Page 1/2"""
+
+    league_shop_page2 = """League Shop
+Hooks :hook: are obtained through weekly fishing leagues. In addition you can earn them through special quests each day.
+
+Balance: 121 :hook:
+
+50 :hook: - 0/5 Fishing Frenzy
+Increases effectiveness of temporary boosts.
+25 :hook: - 0/10 Duplicator 2.0
+3% Chance to double fish catch.
+
+You will receive +49 hooks :hook: at the end of the week. Continue fishing for a greater reward.
+
+Page 2/2"""
+
+    gs10.parse_shop(league_shop_page1, "special")
+    gs10.parse_shop(league_shop_page2, "special")
+    
+    check("Hooks balance from shop parsed", gs10.exotic_inventory.get("Hook"), 121)
+    
+    league_items = [item for item in gs10.unowned_items if item['type'] == 'special' and item.get('currency') == 'Hook']
+    check("Total parsed league upgrades", len(league_items), 6)
+    
+    pet_helper = next(i for i in league_items if i['name'] == 'Pet Helper')
+    check("Pet Helper price (Hooks)", pet_helper['price'], 50)
+    check("Pet Helper currency type", pet_helper['currency'], "Hook")
+    
+    duplicator = next(i for i in league_items if i['name'] == 'Duplicator 2.0')
+    check("Duplicator 2.0 price (Hooks)", duplicator['price'], 25)
+    check("Duplicator 2.0 currency type", duplicator['currency'], "Hook")
+
+    plan10 = gs10.get_purchase_plan()
+    plan10_names = [p['name'] for p in plan10]
+    check("Duplicator 2.0 is in purchase plan", "Duplicator 2.0" in plan10_names, True)
+    check("Duplicator 2.0 is first purchase", plan10[0]['name'], "Duplicator 2.0")
+    
+    plan10_league = [p for p in plan10 if p['type'] == 'special' and p.get('currency') == 'Hook']
+    check("Can afford 2 league upgrades", len(plan10_league), 2)
 
     # ─── Summary ───
     print(f"\n{'='*50}")

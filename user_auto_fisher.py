@@ -118,6 +118,13 @@ class GameState:
                 clean_name = re.sub(r'[\*`]', '', name).strip()
                 self.exotic_inventory[clean_name] = int(count.replace(',', ''))
 
+        # Special section (for hooks)
+        special_sec = re.search(r'Special(.*?)$', text, re.DOTALL | re.IGNORECASE)
+        if special_sec:
+            hook_match = re.search(r'([\d,]+)\s+' + EMOJI_PATTERN + r'\s*Hooks', special_sec.group(1), re.IGNORECASE)
+            if hook_match:
+                self.exotic_inventory['Hook'] = int(hook_match.group(1).replace(',', ''))
+
     def parse_shop(self, text, category=""):
         # Clean markdown formatting (asterisks and backslashes) to match robustly
         text = text.replace('*', '').replace('\\', '')
@@ -193,11 +200,11 @@ class GameState:
                     'max_level': int(maximum),
                 })
 
-            # Parse inventory from header line specifically
-            inv_line_match = re.search(r'Inventory:\s*(.*?)(?:\n|$)', text, re.IGNORECASE)
-            if inv_line_match:
-                inv_matches = re.findall(r'([\d,]+)\s+(' + EMOJI_PATTERN + r')', inv_line_match.group(1))
-                for count, emoji_part in inv_matches:
+            # Parse inventory/balance from header lines specifically
+            inv_matches = re.findall(r'(?:Inventory|Balance):\s*(.*?)(?:\n|$)', text, re.IGNORECASE)
+            for line in inv_matches:
+                matches = re.findall(r'([\d,]+)\s+(' + EMOJI_PATTERN + r')', line)
+                for count, emoji_part in matches:
                     emoji_match = re.search(r':([a-zA-Z0-9_]+):', emoji_part)
                     if emoji_match:
                         currency = emoji_match.group(1).replace('_', ' ').title()
@@ -452,13 +459,14 @@ def fetch_and_parse_shop(category, my_id):
     if response_text:
         game_state.parse_shop(response_text, category)
 
-    # Check for additional pages
-    total_pages = game_state.shop_pages.get(category, 1)
-    for page_num in range(2, total_pages + 1):
-        send_shop_command(category, page=page_num)
-        response_text = extract_bot_response(my_id)
-        if response_text:
-            game_state.parse_shop(response_text, category)
+    # Check for additional pages (only 'rods' supports page parameter in slash commands)
+    if category == "rods":
+        total_pages = game_state.shop_pages.get(category, 1)
+        for page_num in range(2, total_pages + 1):
+            send_shop_command(category, page=page_num)
+            response_text = extract_bot_response(my_id)
+            if response_text:
+                game_state.parse_shop(response_text, category)
 
 
 def extract_verification_code(message_text):
@@ -664,7 +672,7 @@ def main():
                             game_state.parse_shop(msg_content_raw, "boats")
                         elif "upgrade" in lower_content:
                             game_state.parse_shop(msg_content_raw, "upgrades")
-                        elif "special" in lower_content:
+                        elif "special" in lower_content or "league" in lower_content:
                             game_state.parse_shop(msg_content_raw, "special")
                         elif "bait shop" in lower_content or "bait:" in lower_content:
                             game_state.parse_shop(msg_content_raw, "bait")
@@ -772,7 +780,7 @@ def main():
                     game_state.parse_profile(profile_text)
 
                 # Fetch all shop categories (with multi-page support)
-                for shop_cat in ["rods", "boats", "upgrades", "bait", "special"]:
+                for shop_cat in ["rods", "boats", "upgrades", "bait", "special", "league"]:
                     fetch_and_parse_shop(shop_cat, my_id)
 
                 # Print detailed status
