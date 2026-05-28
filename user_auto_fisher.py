@@ -36,6 +36,9 @@ CMD_PROFILE_VER = os.getenv('CMD_PROFILE_VER', '1207457860523663382')
 CMD_SHOP_ID = os.getenv('CMD_SHOP_ID', '912432960643416117')
 CMD_SHOP_VER = os.getenv('CMD_SHOP_VER', '1290504714135277620')
 
+CMD_BAIT_ID = os.getenv('CMD_BAIT_ID', '912432960643416122')
+CMD_BAIT_VER = os.getenv('CMD_BAIT_VER', '1207457860208824337')
+
 # Generate a random 32-character hex session ID
 SESSION_ID = "".join(random.choices("0123456789abcdef", k=32))
 GUILD_ID = os.getenv('GUILD_ID', '1491654181201903646')
@@ -406,6 +409,9 @@ def send_shop_command(category, page=None):
     }]
     return dispatch_slash_command("shop", CMD_SHOP_ID, CMD_SHOP_VER, options)
 
+def send_bait_command(selection):
+    return dispatch_slash_command("bait", CMD_BAIT_ID, CMD_BAIT_VER, [{"type": 3, "name": "selection", "value": selection}])
+
 def extract_bot_response(my_id, wait_time=None):
     """Wait for bot response, then fetch and return the raw text of the most recent bot message directed at us."""
     if wait_time is None:
@@ -584,7 +590,16 @@ def main():
                         print(f"[!] Low bait ({game_state.bait_amount}). Buying 100x {best_bait['name']}...")
                         send_buy_command(f"{best_bait['name']} 100")
                         time.sleep(WAIT_TIME + random.uniform(0, 0.3))
-                        game_state.bait_amount += 100
+                        if best_bait['name'] in game_state.bait_inventory:
+                            game_state.bait_inventory[best_bait['name']]['owned'] += 100
+                        else:
+                            game_state.bait_inventory[best_bait['name']] = {
+                                'name': best_bait['name'],
+                                'price': best_bait['price'],
+                                'owned': 100
+                            }
+                        if best_bait['name'] == game_state.bait_name:
+                            game_state.bait_amount += 100
                         game_state.balance -= total_cost
                 last_buy_time = time.time()
 
@@ -713,11 +728,36 @@ def main():
                         if item in game_state.unowned_items:
                             game_state.unowned_items.remove(item)
                     elif item['type'] == 'bait':
-                        game_state.bait_amount += 100
+                        parts = item['name'].rsplit(' ', 1)
+                        bait_name = parts[0]
+                        buy_amount = int(parts[1]) if len(parts) > 1 else 100
+                        if bait_name in game_state.bait_inventory:
+                            game_state.bait_inventory[bait_name]['owned'] += buy_amount
+                        else:
+                            game_state.bait_inventory[bait_name] = {
+                                'name': bait_name,
+                                'price': item['price'] // buy_amount,
+                                'owned': buy_amount
+                            }
+                        game_state.balance -= item['price']
+                        if bait_name == game_state.bait_name:
+                            game_state.bait_amount += buy_amount
                     else:
                         game_state.balance -= item['price']
                         if item in game_state.unowned_items:
                             game_state.unowned_items.remove(item)
+                
+                # After completing purchases, check if we need to equip a better bait
+                best_bait = game_state.get_best_bait()
+                if best_bait and best_bait['name'] != game_state.bait_name:
+                    best_bait_stock = game_state.bait_inventory.get(best_bait['name'], {}).get('owned', 0)
+                    if best_bait_stock >= 10:
+                        print(f"[+] Equipping better bait: {best_bait['name']} (current: {game_state.bait_name})")
+                        send_bait_command(best_bait['name'])
+                        time.sleep(WAIT_TIME + random.uniform(0, 0.3))
+                        game_state.bait_name = best_bait['name']
+                        game_state.bait_amount = best_bait_stock
+                
                 print(f"    Remaining balance: ${game_state.balance:,}")
 
             # Sync shop state periodically (every 5 minutes)
@@ -771,7 +811,9 @@ def main():
                 # DO NOT skip /fish this cycle so we do not pause fishing
 
             # 2. Send the /fish command using interactions API
-            send_slash_command()
+            if send_slash_command():
+                if game_state.bait_amount > 0:
+                    game_state.bait_amount -= 1
 
             # 3. Wait exactly WAIT_TIME seconds + random 0 to 0.3s
             actual_wait = WAIT_TIME + random.uniform(0, 0.3)
