@@ -524,39 +524,75 @@ def get_image_url_from_message(msg):
 def handle_verification(msg_content_raw, msg=None):
     """Attempt to auto-solve the verification."""
     code = extract_verification_code(msg_content_raw)
+    image_url = get_image_url_from_message(msg) if msg else None
 
-    if not code:
-        image_url = get_image_url_from_message(msg)
-        if image_url:
-            print(f"🖼️ Found image verification at: {image_url}")
-            api_key = os.getenv('GEMINI_API_KEY')
-            if api_key:
-                try:
-                    import google.generativeai as genai
-                    from PIL import Image
-                    import io
-                    print("🤖 Using Google AI Studio to solve image captcha...")
-                    genai.configure(api_key=api_key)
-                    # User specifically requested gemma-4-26b-a4b-it
-                    model = genai.GenerativeModel('gemma-4-26b-a4b-it')
+    # Captchas are often posted in a separate message "above" the instruct embedding.
+    # If no captcha code or image URL is in the current instructions message, search recent messages from Virtual Fisher.
+    if not code and not image_url:
+        print("[!] Captcha info not in main instruction message. Searching recent bot messages...")
+        recent_messages = get_latest_messages(limit=10)
+        for r_msg in recent_messages:
+            author = r_msg.get('author', {})
+            if author.get('bot', False) or author.get('username') == 'Virtual Fisher':
+                # Reconstruct raw content for the recent message
+                r_raw = r_msg.get('content', '')
+                for embed in r_msg.get('embeds', []):
+                    if embed.get('title'):
+                        r_raw += '\n' + embed['title']
+                    if embed.get('description'):
+                        r_raw += '\n' + embed['description']
+                    for field in embed.get('fields', []):
+                        if field.get('name'):
+                            r_raw += '\n' + field['name']
+                        if field.get('value'):
+                            r_raw += '\n' + field['value']
 
-                    response = requests.get(image_url)
-                    if response.status_code == 200:
-                        img = Image.open(io.BytesIO(response.content))
-                        prompt = "Extract the verification code or text from this captcha image. Respond with ONLY the exact code/text, nothing else. No explanation, no markdown."
-                        ocr_result = model.generate_content([prompt, img])
-                        code = ocr_result.text.strip()
-                        # Clean up any potential markdown added by the model
-                        code = re.sub(r'[\*_`]', '', code)
-                        print(f"🤖 AI Studio OCR Result: {code}")
-                    else:
-                        print("❌ Failed to download image for OCR.")
-                except ImportError:
-                    print("❌ google-generativeai or Pillow library is not installed.")
-                except Exception as e:
-                    print(f"❌ Error during AI Studio OCR: {e}")
-            else:
-                print("⚠️ GEMINI_API_KEY not found in .env. Setup Google AI Studio API for optional Auto-OCR. (It's 100% free!)")
+                # Check for text code first
+                r_code = extract_verification_code(r_raw)
+                if r_code:
+                    code = r_code
+                    print(f"🔧 Found captcha code in a related message: {code}")
+                    break
+
+                # Check for image URL next
+                r_img = get_image_url_from_message(r_msg)
+                if r_img:
+                    image_url = r_img
+                    print(f"🖼️ Found captcha image in a related message: {image_url}")
+                    msg_content_raw = r_raw
+                    msg = r_msg
+                    break
+
+    if not code and image_url:
+        print(f"🖼️ Found image verification at: {image_url}")
+        api_key = os.getenv('GEMINI_API_KEY')
+        if api_key:
+            try:
+                import google.generativeai as genai
+                from PIL import Image
+                import io
+                print("🤖 Using Google AI Studio to solve image captcha...")
+                genai.configure(api_key=api_key)
+                # User specifically requested gemma-4-26b-a4b-it
+                model = genai.GenerativeModel('gemma-4-26b-a4b-it')
+
+                response = requests.get(image_url)
+                if response.status_code == 200:
+                    img = Image.open(io.BytesIO(response.content))
+                    prompt = "Extract the verification code or text from this captcha image. Respond with ONLY the exact code/text, nothing else. No explanation, no markdown."
+                    ocr_result = model.generate_content([prompt, img])
+                    code = ocr_result.text.strip()
+                    # Clean up any potential markdown added by the model
+                    code = re.sub(r'[\*_`]', '', code)
+                    print(f"🤖 AI Studio OCR Result: {code}")
+                else:
+                    print("❌ Failed to download image for OCR.")
+            except ImportError:
+                print("❌ google-generativeai or Pillow library is not installed.")
+            except Exception as e:
+                print(f"❌ Error during AI Studio OCR: {e}")
+        else:
+            print("⚠️ GEMINI_API_KEY not found in .env. Setup Google AI Studio API for optional Auto-OCR. (It's 100% free!)")
 
     if code:
         print(f"🔧 Extracted captcha code: {code}")
