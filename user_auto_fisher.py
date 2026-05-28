@@ -409,11 +409,15 @@ def send_shop_command(category, page=None):
     sub_options = []
     if page is not None and page > 1:
         sub_options.append({"type": 4, "name": "page", "value": int(page)})
-    options = [{
+    
+    sub_cmd = {
         "type": 1,
-        "name": category,
-        "options": sub_options
-    }]
+        "name": category
+    }
+    if sub_options:
+        sub_cmd["options"] = sub_options
+        
+    options = [sub_cmd]
     return dispatch_slash_command("shop", CMD_SHOP_ID, CMD_SHOP_VER, options)
 
 def send_bait_command(selection):
@@ -421,34 +425,46 @@ def send_bait_command(selection):
 
 def extract_bot_response(my_id, wait_time=None):
     """Wait for bot response, then fetch and return the raw text of the most recent bot message directed at us."""
-    if wait_time is None:
-        wait_time = WAIT_TIME + 1.5
-    time.sleep(wait_time)
-    messages = get_latest_messages(limit=5)
-    for msg in messages:
-        author = msg.get('author', {})
-        if not (author.get('bot', False) or author.get('username') == 'Virtual Fisher'):
-            continue
-        # Check if message is for us
-        if my_id and msg.get('interaction', {}).get('user', {}).get('id') == my_id:
-            pass  # It's for us
-        elif my_id and any(u.get('id') == my_id for u in msg.get('mentions', [])):
-            pass  # It's for us
-        else:
-            continue
-        # Build raw text from content + embeds
-        raw = msg.get('content', '')
-        for embed in msg.get('embeds', []):
-            if embed.get('title'):
-                raw += '\n' + embed['title']
-            if embed.get('description'):
-                raw += '\n' + embed['description']
-            for field in embed.get('fields', []):
-                if field.get('name'):
-                    raw += '\n' + field['name']
-                if field.get('value'):
-                    raw += '\n' + field['value']
-        return raw
+    # Poll up to 6 times, waiting 0.8 seconds between each check
+    # This is much faster if the response is quick, and extremely robust if the response is delayed!
+    max_attempts = 6
+    sleep_interval = 0.8
+    
+    if wait_time is not None:
+        time.sleep(wait_time)
+        max_attempts = 3 # reduce polling since we already slept
+        
+    for attempt in range(max_attempts):
+        messages = get_latest_messages(limit=5)
+        for msg in messages:
+            author = msg.get('author', {})
+            if not (author.get('bot', False) or author.get('username') == 'Virtual Fisher'):
+                continue
+            
+            # Check if message is for us
+            is_for_us = False
+            if my_id and msg.get('interaction', {}).get('user', {}).get('id') == my_id:
+                is_for_us = True
+            elif my_id and any(u.get('id') == my_id for u in msg.get('mentions', [])):
+                is_for_us = True
+            
+            if is_for_us:
+                # Build raw text from content + embeds
+                raw = msg.get('content', '')
+                for embed in msg.get('embeds', []):
+                    if embed.get('title'):
+                        raw += '\n' + embed['title']
+                    if embed.get('description'):
+                        raw += '\n' + embed['description']
+                    for field in embed.get('fields', []):
+                        if field.get('name'):
+                            raw += '\n' + field['name']
+                        if field.get('value'):
+                            raw += '\n' + field['value']
+                return raw
+                
+        time.sleep(sleep_interval)
+        
     return ""
 
 def fetch_and_parse_shop(category, my_id):
