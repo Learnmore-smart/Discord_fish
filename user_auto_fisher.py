@@ -409,14 +409,14 @@ def send_shop_command(category, page=None):
     sub_options = []
     if page is not None and page > 1:
         sub_options.append({"type": 4, "name": "page", "value": int(page)})
-    
+
     sub_cmd = {
         "type": 1,
         "name": category
     }
     if sub_options:
         sub_cmd["options"] = sub_options
-        
+
     options = [sub_cmd]
     return dispatch_slash_command("shop", CMD_SHOP_ID, CMD_SHOP_VER, options)
 
@@ -429,25 +429,25 @@ def extract_bot_response(my_id, wait_time=None):
     # This is much faster if the response is quick, and extremely robust if the response is delayed!
     max_attempts = 6
     sleep_interval = 0.8
-    
+
     if wait_time is not None:
         time.sleep(wait_time)
         max_attempts = 3 # reduce polling since we already slept
-        
+
     for attempt in range(max_attempts):
         messages = get_latest_messages(limit=5)
         for msg in messages:
             author = msg.get('author', {})
             if not (author.get('bot', False) or author.get('username') == 'Virtual Fisher'):
                 continue
-            
+
             # Check if message is for us
             is_for_us = False
             if my_id and msg.get('interaction', {}).get('user', {}).get('id') == my_id:
                 is_for_us = True
             elif my_id and any(u.get('id') == my_id for u in msg.get('mentions', [])):
                 is_for_us = True
-            
+
             if is_for_us:
                 # Build raw text from content + embeds
                 raw = msg.get('content', '')
@@ -462,9 +462,9 @@ def extract_bot_response(my_id, wait_time=None):
                         if field.get('value'):
                             raw += '\n' + field['value']
                 return raw
-                
+
         time.sleep(sleep_interval)
-        
+
     return ""
 
 def fetch_and_parse_shop(category, my_id):
@@ -517,6 +517,8 @@ def get_image_url_from_message(msg):
     for embed in msg.get('embeds', []):
         if embed.get('image') and embed['image'].get('url'):
             return embed['image']['url']
+        if embed.get('thumbnail') and embed['thumbnail'].get('url'):
+            return embed['thumbnail']['url']
     return None
 
 def handle_verification(msg_content_raw, msg=None):
@@ -595,7 +597,125 @@ def main():
         try:
             current_time = time.time()
 
-            # Send scheduled buy commands every 5 minutes
+            # 1. IMMEDIATE ANTI-BOT / CAPTCHA CHECK (Runs at the absolute start of every cycle)
+            messages = get_latest_messages(limit=15)
+            active_verification_detected = False
+            active_verification_msg = None
+            active_verification_content_raw = ""
+
+            for msg in messages:
+                author = msg.get('author', {})
+                if author.get('bot', False) or author.get('username') == 'Virtual Fisher':
+                    content = msg.get('content', '').lower()
+
+                    # Ensure the bot message is directed at us
+                    is_for_me = False
+                    if my_id and msg.get('interaction', {}).get('user', {}).get('id') == my_id:
+                        is_for_me = True
+                    elif my_id and any(u.get('id') == my_id for u in msg.get('mentions', [])):
+                        is_for_me = True
+                    elif my_username and my_username in content:
+                        is_for_me = True
+                    elif my_global_name and my_global_name in content:
+                        is_for_me = True
+
+                    if not is_for_me:
+                        continue
+
+                    # Reconstruct raw content for captcha detection & solving
+                    msg_content_raw = msg.get('content', '')
+                    for embed in msg.get('embeds', []):
+                        if embed.get('title'):
+                            content += ' ' + embed['title'].lower()
+                            msg_content_raw += '\n' + embed['title']
+                        if embed.get('description'):
+                            content += ' ' + embed['description'].lower()
+                            msg_content_raw += '\n' + embed['description']
+                        for field in embed.get('fields', []):
+                            if field.get('name'):
+                                content += ' ' + field['name'].lower()
+                                msg_content_raw += '\n' + field['name']
+                            if field.get('value'):
+                                content += ' ' + field['value'].lower()
+                                msg_content_raw += '\n' + field['value']
+
+                    msg_id = msg.get('id')
+                    has_verification = any(keyword in content for keyword in KEYWORDS)
+
+                    if has_verification:
+                        if msg_id not in handled_verifications:
+                            active_verification_detected = True
+                            active_verification_msg = msg
+                            active_verification_content_raw = msg_content_raw
+                            break  # Prioritize solving this verification immediately!
+
+            if active_verification_detected:
+                print("\n" + "="*50)
+                print(f"🛑 Detected active anti-bot keyword in message from bot '{active_verification_msg.get('author', {}).get('username')}'!")
+                print(f"Message content: {active_verification_msg.get('content')}")
+                if active_verification_msg.get('embeds'):
+                    print(f"Embeds: {active_verification_msg.get('embeds')}")
+                print("="*50 + "\n")
+
+                handled_verifications.add(active_verification_msg.get('id'))
+                success = handle_verification(active_verification_content_raw, active_verification_msg)
+                if success:
+                    print("[*] Verification auto-solved. Resuming fishing in 5 seconds...")
+                    time.sleep(5)
+                    continue  # Skip everything else in this cycle to let state settle
+                else:
+                    print("[!] Verification handling failed. Stopping to avoid ban.")
+                    fishing_active = False
+                    break
+
+            # 2. PROFILE / SHOP STATE PARSING (Always parse new messages, not gated by handled set)
+            for msg in messages:
+                author = msg.get('author', {})
+                if author.get('bot', False) or author.get('username') == 'Virtual Fisher':
+                    # Ensure the bot message is directed at us
+                    is_for_me = False
+                    content = msg.get('content', '').lower()
+                    if my_id and msg.get('interaction', {}).get('user', {}).get('id') == my_id:
+                        is_for_me = True
+                    elif my_id and any(u.get('id') == my_id for u in msg.get('mentions', [])):
+                        is_for_me = True
+                    elif my_username and my_username in content:
+                        is_for_me = True
+                    elif my_global_name and my_global_name in content:
+                        is_for_me = True
+
+                    if not is_for_me:
+                        continue
+
+                    # Reconstruct raw content for parsing
+                    msg_content_raw = msg.get('content', '')
+                    for embed in msg.get('embeds', []):
+                        if embed.get('title'):
+                            msg_content_raw += '\n' + embed['title']
+                        if embed.get('description'):
+                            msg_content_raw += '\n' + embed['description']
+                        for field in embed.get('fields', []):
+                            if field.get('name'):
+                                msg_content_raw += '\n' + field['name']
+                            if field.get('value'):
+                                msg_content_raw += '\n' + field['value']
+
+                    lower_content = msg_content_raw.lower()
+                    if "inventory of" in lower_content or "balance:" in lower_content:
+                        game_state.parse_profile(msg_content_raw)
+                    if "shop" in lower_content:
+                        if "rod" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "rods")
+                        elif "boat" in lower_content or "sailboat" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "boats")
+                        elif "upgrade" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "upgrades")
+                        elif "special" in lower_content or "league" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "special")
+                        elif "bait shop" in lower_content or "bait:" in lower_content:
+                            game_state.parse_shop(msg_content_raw, "bait")
+
+            # 3. Scheduled buy commands every 5 minutes
             if current_time - last_buy_time >= COOLDOWN_BUY:
                 print("\n[+] Sending 5-minute scheduled buy commands...")
                 # Sell all fish first to get money
@@ -626,94 +746,6 @@ def main():
                             game_state.bait_amount += 100
                         game_state.balance -= total_cost
                 last_buy_time = time.time()
-
-            # 1. Read recent messages to check for bot stop keywords
-            messages = get_latest_messages(limit=15)
-
-            for msg in messages:
-                author = msg.get('author', {})
-                if author.get('bot', False) or author.get('username') == 'Virtual Fisher':
-                    content = msg.get('content', '').lower()
-
-                    # Ensure the bot message is directed at us
-                    is_for_me = False
-                    if my_id and msg.get('interaction', {}).get('user', {}).get('id') == my_id:
-                        is_for_me = True
-                    elif my_id and any(u.get('id') == my_id for u in msg.get('mentions', [])):
-                        is_for_me = True
-                    elif my_username and my_username in content:
-                        is_for_me = True
-                    elif my_global_name and my_global_name in content:
-                        is_for_me = True
-
-                    if not is_for_me:
-                        continue # Skip messages for other users
-
-                    # Reconstruct raw content for case-sensitive captcha solving
-                    msg_content_raw = msg.get('content', '')
-
-                    # Parse message embeds and their internal fields
-                    for embed in msg.get('embeds', []):
-                        if embed.get('title'):
-                            content += ' ' + embed['title'].lower()
-                            msg_content_raw += '\n' + embed['title']
-                        if embed.get('description'):
-                            content += ' ' + embed['description'].lower()
-                            msg_content_raw += '\n' + embed['description']
-                        for field in embed.get('fields', []):
-                            if field.get('name'):
-                                content += ' ' + field['name'].lower()
-                                msg_content_raw += '\n' + field['name']
-                            if field.get('value'):
-                                content += ' ' + field['value'].lower()
-                                msg_content_raw += '\n' + field['value']
-
-                    msg_id = msg.get('id')
-
-                    # --- Anti-bot / Verification check ---
-                    has_verification = any(keyword in content for keyword in KEYWORDS)
-                    if has_verification:
-                        if msg_id in handled_verifications:
-                            continue
-                        handled_verifications.add(msg_id)
-
-                    # --- Profile/Shop State Parsing (always parse, not gated by handled set) ---
-                    lower_content = msg_content_raw.lower()
-                    if "inventory of" in lower_content or "balance:" in lower_content:
-                        game_state.parse_profile(msg_content_raw)
-                    if "shop" in lower_content:
-                        if "rod" in lower_content:
-                            game_state.parse_shop(msg_content_raw, "rods")
-                        elif "boat" in lower_content or "sailboat" in lower_content:
-                            game_state.parse_shop(msg_content_raw, "boats")
-                        elif "upgrade" in lower_content:
-                            game_state.parse_shop(msg_content_raw, "upgrades")
-                        elif "special" in lower_content or "league" in lower_content:
-                            game_state.parse_shop(msg_content_raw, "special")
-                        elif "bait shop" in lower_content or "bait:" in lower_content:
-                            game_state.parse_shop(msg_content_raw, "bait")
-
-                    # --- Handle verification if detected ---
-                    if has_verification:
-                        print("\n" + "="*50)
-                        print(f"🛑 Detected anti-bot keyword in message from bot '{author.get('username')}'!")
-                        print(f"Message content: {msg.get('content')}")
-                        if msg.get('embeds'):
-                            print(f"Embeds: {msg.get('embeds')}")
-                        print("="*50 + "\n")
-
-                        success = handle_verification(msg_content_raw, msg)
-                        if success:
-                            print("[*] Verification auto-solved. Resuming fishing in 5 seconds...")
-                            time.sleep(5)
-                            break
-                        else:
-                            print("[!] Verification handling failed. Stopping to avoid ban.")
-                            fishing_active = False
-                            break
-
-            if not fishing_active:
-                break
 
             # --- Smart Auto-Purchasing (runs after shop sync populates data) ---
             purchase_plan = game_state.get_purchase_plan()
@@ -770,7 +802,7 @@ def main():
                         game_state.balance -= item['price']
                         if item in game_state.unowned_items:
                             game_state.unowned_items.remove(item)
-                
+
                 # After completing purchases, check if we need to equip a better bait
                 best_bait = game_state.get_best_bait()
                 if best_bait and best_bait['name'] != game_state.bait_name:
@@ -781,7 +813,7 @@ def main():
                         time.sleep(WAIT_TIME + random.uniform(0, 0.3))
                         game_state.bait_name = best_bait['name']
                         game_state.bait_amount = best_bait_stock
-                
+
                 print(f"    Remaining balance: ${game_state.balance:,}")
 
             # Sync shop state periodically (every 5 minutes)
