@@ -61,11 +61,11 @@ class GameState:
         bait_match = re.search(r'Bait:(.*?)(?:\n|$)', text)
         if bait_match:
             bait_line = bait_match.group(1)
-            b = re.search(EMOJI_PATTERN + r'\s*(.*?)\s*\((\d+)\)', bait_line)
+            b = re.search(EMOJI_PATTERN + r'\s*(.*?)\s*\(([\d,]+)\)', bait_line)
             if b:
                 clean_name = re.sub(r'[\*`]', '', b.group(1)).strip()
                 self.bait_name = clean_name
-                self.bait_amount = int(b.group(2))
+                self.bait_amount = int(b.group(2).replace(',', ''))
 
         # Exotic Fish section
         exotic_sec = re.search(r'Exotic Fish(.*?)(?:Special|$)', text, re.DOTALL | re.IGNORECASE)
@@ -102,14 +102,14 @@ class GameState:
 
         if category == "bait":
             # Format: :bait_type: Name - $PRICE. You own: COUNT
-            bait_pattern = EMOJI_PATTERN + r'\s*(.+?)\s*-\s*\$([\d,]+)\.\s*You own:\s*(\d+)'
+            bait_pattern = EMOJI_PATTERN + r'\s*(.+?)\s*-\s*\$([\d,]+)\.\s*You own:\s*([\d,]+)'
             baits = re.findall(bait_pattern, text)
             for name, price, owned in baits:
                 clean_name = re.sub(r'[\*`]', '', name).strip()
                 self.bait_inventory[clean_name] = {
                     'name': clean_name,
                     'price': int(price.replace(',', '')),
-                    'owned': int(owned)
+                    'owned': int(owned.replace(',', ''))
                 }
 
             # Detect next bait unlock: "UNLOCKED AT LEVEL XXX!"
@@ -267,7 +267,7 @@ Balance: $48,492,925.
 Level 148, 128,713/885,000 XP to next level.
 Currently using :golden_rod: Golden Rod.
 Current biome: :biome_ocean: Ocean
-Bait: :bait_magic: Magic Bait (632)
+Bait: :bait_magic: Magic Bait (18,189)
 
 Fish Inventory
 103 :pufferfish: Pufferfish
@@ -351,7 +351,7 @@ BAIT_SHOP = """Bait is consumed PER CAST so make sure to stock up.
 /buy <type> <amount> (e.g. /buy Worms 10).
 Your balance: $48,515,998
 
-Bait: :bait_magic: Magic Bait (595)
+Bait: :bait_magic: Magic Bait (18,189)
 
 :bait_worms: Worms - $4. You own: 0
 Increases amount of fish caught.
@@ -365,7 +365,7 @@ Increases XP per fish catch.
 Increases your fish catch and the quality of fish.
 :bait_artifact: Artifact Magnet - $75. You own: 0
 Causes fewer fish to bite but increases your chances of finding treasure and increases quality of treasure found.
-:bait_magic: Magic Bait - $250. You own: 595
+:bait_magic: Magic Bait - $250. You own: 18,189
 Causes you to catch more, better quality fish and treasure.
 
 Next Bait: :bait_support: Support Bait
@@ -430,7 +430,7 @@ def run_tests():
     check("Balance", gs.balance, 48492925)
     check("Level", gs.level, 148)
     check("Bait name", gs.bait_name, "Magic Bait")
-    check("Bait amount", gs.bait_amount, 632)
+    check("Bait amount", gs.bait_amount, 18189)
     check("Fish value", gs.fish_value, 811676)
 
     # ─── Test 2: Rod Shop Parsing (multi-page) ───
@@ -498,7 +498,7 @@ def run_tests():
     check("Worms price", gs5.bait_inventory['Worms']['price'], 4)
     check("Worms owned", gs5.bait_inventory['Worms']['owned'], 0)
     check("Magic Bait price", gs5.bait_inventory['Magic Bait']['price'], 250)
-    check("Magic Bait owned", gs5.bait_inventory['Magic Bait']['owned'], 595)
+    check("Magic Bait owned", gs5.bait_inventory['Magic Bait']['owned'], 18189)
     check("Next bait unlock level", gs5.next_bait_unlock_level, 150)
     # Best bait
     best = gs5.get_best_bait()
@@ -518,9 +518,9 @@ def run_tests():
     gs6.parse_shop(BAIT_SHOP, "bait")
 
     plan = gs6.get_purchase_plan()
-    # With 632 bait, no bait purchase needed
+    # With 18189 bait, no bait purchase needed
     plan_names = [p.get('display_name', p['name']) for p in plan]
-    check("No bait in plan (stock=632)", any('bait' in n.lower() for n in plan_names if 'Bait' in n and '50x' in n), False)
+    check("No bait in plan (stock=18189)", any('bait' in n.lower() for n in plan_names if 'Bait' in n and '50x' in n), False)
     # Should buy: Heavy Rod ($100K), Alloy Rod ($250K) — affordable
     # Should NOT buy: Oceanium Rod ($75M), Experienced ($50M) — can't afford both after Alloy
     check("First purchase is Heavy Rod", plan[0]['name'], "Heavy Rod")

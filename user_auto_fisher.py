@@ -103,11 +103,11 @@ class GameState:
         bait_match = re.search(r'Bait:(.*?)(?:\n|$)', text)
         if bait_match:
             bait_line = bait_match.group(1)
-            b = re.search(EMOJI_PATTERN + r'\s*(.*?)\s*\((\d+)\)', bait_line)
+            b = re.search(EMOJI_PATTERN + r'\s*(.*?)\s*\(([\d,]+)\)', bait_line)
             if b:
                 clean_name = re.sub(r'[\*`]', '', b.group(1)).strip()
                 self.bait_name = clean_name
-                self.bait_amount = int(b.group(2))
+                self.bait_amount = int(b.group(2).replace(',', ''))
 
         # Exotic Fish section
         exotic_sec = re.search(r'Exotic Fish(.*?)(?:Special|$)', text, re.DOTALL | re.IGNORECASE)
@@ -144,14 +144,14 @@ class GameState:
 
         if category == "bait":
             # Format: :bait_type: Name - $PRICE. You own: COUNT
-            bait_pattern = EMOJI_PATTERN + r'\s*(.+?)\s*-\s*\$([\d,]+)\.\s*You own:\s*(\d+)'
+            bait_pattern = EMOJI_PATTERN + r'\s*(.+?)\s*-\s*\$([\d,]+)\.\s*You own:\s*([\d,]+)'
             baits = re.findall(bait_pattern, text)
             for name, price, owned in baits:
                 clean_name = re.sub(r'[\*`]', '', name).strip()
                 self.bait_inventory[clean_name] = {
                     'name': clean_name,
                     'price': int(price.replace(',', '')),
-                    'owned': int(owned)
+                    'owned': int(owned.replace(',', ''))
                 }
 
             # Detect next bait unlock: "UNLOCKED AT LEVEL XXX!"
