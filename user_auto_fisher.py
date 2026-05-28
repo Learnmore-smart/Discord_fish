@@ -479,6 +479,7 @@ def fetch_and_parse_shop(category, my_id):
     if category == "rods":
         total_pages = game_state.shop_pages.get(category, 1)
         for page_num in range(2, total_pages + 1):
+            time.sleep(WAIT_TIME + random.uniform(0.5, 1.0))  # Rate limit sleep before next page command
             send_shop_command(category, page=page_num)
             response_text = extract_bot_response(my_id)
             if response_text:
@@ -866,6 +867,7 @@ def main():
                 # Fetch all shop categories (with multi-page support)
                 for shop_cat in ["rods", "boats", "upgrades", "bait", "special", "league"]:
                     fetch_and_parse_shop(shop_cat, my_id)
+                    time.sleep(1.5 + random.uniform(0, 0.4))  # Prevent Discord interaction rate limits!
 
                 # Print detailed status
                 print(f"\n    === Shop Sync Complete ===")
