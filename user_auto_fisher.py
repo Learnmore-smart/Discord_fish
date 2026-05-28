@@ -84,7 +84,7 @@ class GameState:
     def parse_profile(self, text):
         # Clean markdown formatting (asterisks and backslashes) to match robustly
         text = text.replace('*', '').replace('\\', '')
-        
+
         bal_match = re.search(r'Balance:\s*\$([\d,]+)', text)
         if bal_match:
             self.balance = int(bal_match.group(1).replace(',', ''))
@@ -118,7 +118,7 @@ class GameState:
     def parse_shop(self, text, category=""):
         # Clean markdown formatting (asterisks and backslashes) to match robustly
         text = text.replace('*', '').replace('\\', '')
-        
+
         # Extract balance from shop header
         if "Your balance:" in text:
             bal_match = re.search(r'Your balance:\s*\$([\d,]+)', text)
@@ -179,7 +179,7 @@ class GameState:
                 currency = "Gold Fish" # fallback
                 if emoji_match:
                     currency = emoji_match.group(1).replace('_', ' ').title()
-                
+
                 self.unowned_items.append({
                     'name': clean_name,
                     'price': int(price.replace(',', '')),
@@ -261,7 +261,7 @@ class GameState:
         # Priority 2: Special Shop upgrades (bought with exotic fish)
         special_items = [item for item in self.unowned_items if item['type'] == 'special']
         special_items.sort(key=lambda x: x['price'])
-        
+
         remaining_exotics = self.exotic_inventory.copy()
         for item in special_items:
             currency = item.get('currency', 'Diamond Fish')
@@ -366,7 +366,14 @@ def dispatch_slash_command(command_name, cmd_id, version, options=None):
 
     response = requests.post(url, headers=HEADERS, json=payload)
     if response.status_code in [200, 204]:
-        opts_str = " ".join([f"{o.get('name')}={o.get('value')}" for o in options])
+        opts_list = []
+        for o in options:
+            if o.get('type') == 1: # Subcommand
+                sub_opts = " ".join([f"{so.get('name')}={so.get('value')}" for so in o.get('options', [])])
+                opts_list.append(f"{o.get('name')} {sub_opts}".strip())
+            else:
+                opts_list.append(f"{o.get('name')}={o.get('value')}")
+        opts_str = " ".join(opts_list)
         print(f"Sent Slash Command: /{command_name} {opts_str}".strip())
         return True
     else:
@@ -389,9 +396,14 @@ def send_profile_command():
     return dispatch_slash_command("profile", CMD_PROFILE_ID, CMD_PROFILE_VER)
 
 def send_shop_command(category, page=None):
-    options = [{"type": 3, "name": "category", "value": category}]
+    sub_options = []
     if page is not None and page > 1:
-        options.append({"type": 4, "name": "page", "value": str(page)})
+        sub_options.append({"type": 4, "name": "page", "value": int(page)})
+    options = [{
+        "type": 1,
+        "name": category,
+        "options": sub_options
+    }]
     return dispatch_slash_command("shop", CMD_SHOP_ID, CMD_SHOP_VER, options)
 
 def extract_bot_response(my_id, wait_time=None):
@@ -673,7 +685,7 @@ def main():
                     level_info = ""
                     if 'current_level' in item:
                         level_info = f" ({item['current_level']}->{item['current_level']+1}/{item['max_level']})"
-                    
+
                     if item['type'] == 'special':
                         currency = item.get('currency', 'Lava Fish')
                         print(f"    {i}. {display}{level_info} - {item['price']} {currency} ({item['type']})")
@@ -688,11 +700,11 @@ def main():
                         cost_str = f"{item['price']} {currency}"
                     else:
                         cost_str = f"${item['price']:,}"
-                        
+
                     print(f"[+] Buying {display} for {cost_str}...")
                     send_buy_command(item['name'])
                     time.sleep(WAIT_TIME + random.uniform(0, 0.3))
-                    
+
                     # Update local state
                     if item['type'] == 'special':
                         currency = item.get('currency', 'Lava Fish')
@@ -729,23 +741,23 @@ def main():
                 print(f"    Bait: {game_state.bait_name} ({game_state.bait_amount}) | Best: {game_state.get_best_bait()['name'] if game_state.get_best_bait() else 'N/A'}")
                 if game_state.next_bait_unlock_level:
                     print(f"    Next bait unlocks at Level {game_state.next_bait_unlock_level}")
-                
+
                 rod_count = len([i for i in game_state.unowned_items if i['type'] == 'rods'])
                 boat_count = len([i for i in game_state.unowned_items if i['type'] == 'boats'])
                 upgrade_count = len([i for i in game_state.unowned_items if i['type'] == 'upgrades'])
                 special_count = len([i for i in game_state.unowned_items if i['type'] == 'special'])
                 print(f"    Available: {rod_count} rods, {boat_count} boats, {upgrade_count} upgrades, {special_count} special upgrades")
-                
+
                 # Print exotic fish count
                 exotic_str = " | ".join([f"{name}: {count:,}" for name, count in game_state.exotic_inventory.items()])
                 if exotic_str:
                     print(f"    Exotic Fish: {exotic_str}")
-                    
+
                 for item in sorted(game_state.unowned_items, key=lambda x: x['price']):
                     level_info = ""
                     if 'current_level' in item:
                         level_info = f" ({item['current_level']}/{item['max_level']})"
-                    
+
                     if item['type'] == 'special':
                         currency = item.get('currency', 'Lava Fish')
                         owned_count = game_state.exotic_inventory.get(currency, 0)
