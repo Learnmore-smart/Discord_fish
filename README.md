@@ -1,6 +1,7 @@
 # Discord Virtual Fisher Auto-Bot
 
 An automated Python script for sending `/fish` commands in Discord to play Virtual Fisher, with an anti-bot verification handler.
+![alt text](public/automationexample.png)
 
 ## Features
 
