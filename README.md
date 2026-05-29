@@ -122,16 +122,16 @@ python user_auto_fisher.py
 ![alt text](public/vscode.png)
 ![alt text](public/python.png)
 
-### 7. Updating the Bot
+### 6. Updating the Bot
 
 If the author puts out a new update, you don't need to do the whole process again! Simply:
 
 1. Open the project in VS Code.
 2. Click on the **Source Control** icon on the left sidebar (it looks like a branch/graph).
 3. Click the **Sync Changes** (or **Pull**) button.
-   ![Sync Changes](public/sync_changes.png)
-   _(Alternatively, you can open a terminal and run `git pull`)_
    ![alt text](public/update.png)
+
+   _(Alternatively, you can open a terminal and run `git pull`)_
    The bot will automatically download any new improvements while keeping your `.env` settings safe!
 
 ## Disclaimer
